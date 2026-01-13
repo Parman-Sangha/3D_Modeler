@@ -1,0 +1,9 @@
+# 3D Modeler Pro Dependencies
+
+# Core dependencies (minimal for JSON generation)
+# No external dependencies required for basic functionality
+
+# Optional dependencies for future enhancements:
+# numpy>=1.21.0  # For geometric calculations
+# pillow>=8.0.0  # For image processing (blueprint parsing)
+# jsonschema>=3.2.0  # For JSON validation
