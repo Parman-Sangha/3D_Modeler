@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Modeler Pro - Dollhouse View</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: #1a1a1a;
+        color: #fff;
+        overflow: hidden;
+      }
+
+      #container {
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+      }
+
+      #canvas-container {
+        width: 100%;
+        height: 100%;
+      }
+
+      #controls {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 15px;
+        border-radius: 8px;
+        z-index: 100;
+        min-width: 250px;
+      }
+
+      #controls h3 {
+        margin-bottom: 10px;
+        font-size: 16px;
+      }
+
+      #controls button {
+        background: #4caf50;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        margin: 5px 5px 5px 0;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      #controls button:hover {
+        background: #45a049;
+      }
+
+      #controls input[type="file"] {
+        margin: 10px 0;
+        color: white;
+      }
+
+      #info {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 12px;
+        max-width: 300px;
+      }
+
+      #info h4 {
+        margin-bottom: 8px;
+      }
+
+      .loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 18px;
+        z-index: 200;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <div id="canvas-container"></div>
+
+      <div id="controls">
+        <h3>🎮 Controls</h3>
+        <input type="file" id="fileInput" accept=".json" />
+        <br />
+        <button onclick="resetCamera()">Reset View</button>
+        <button onclick="toggleWireframe()">Toggle Wireframe</button>
+        <button onclick="toggleLabels()">Toggle Labels</button>
+        <div style="margin-top: 10px">
+          <label style="font-size: 12px">
+            <input
+              type="checkbox"
+              id="dollhouseView"
+              checked
+              onchange="setDollhouseView(this.checked)"
+            />
+            Dollhouse View
+          </label>
+        </div>
+      </div>
+
+      <div id="info">
+        <h4>📊 Scene Info</h4>
+        <div id="sceneInfo">Load a JSON file to view</div>
+      </div>
+
+      <div id="loading" class="loading" style="display: none">
+        Loading scene...
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+      // Ensure OrbitControls is available
+      if (typeof THREE !== "undefined" && !THREE.OrbitControls) {
+        // Load from alternative CDN if needed
+        const script = document.createElement("script");
+        script.src =
+          "https://threejs.org/examples/js/controls/OrbitControls.js";
+        document.head.appendChild(script);
+      }
+    </script>
+    <script>
+      let scene, camera, renderer, controls;
+      let walls = [],
+        rooms = [],
+        furniture = [];
+      let wireframeMode = false;
+      let labelsVisible = true;
+      let dollhouseView = true;
+
+      // Initialize Three.js scene
+      function init() {
+        const container = document.getElementById("canvas-container");
+
+        // Scene
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x2a2a2a);
+        scene.fog = new THREE.Fog(0x2a2a2a, 10, 50);
+
+        // Camera (isometric/dollhouse view)
+        camera = new THREE.PerspectiveCamera(
+          45,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        setDollhouseView(true);
+
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        // Controls (simple manual controls if OrbitControls not available)
+        try {
+          controls = new THREE.OrbitControls(camera, renderer.domElement);
+          controls.enableDamping = true;
+          controls.dampingFactor = 0.05;
+          controls.minDistance = 5;
+          controls.maxDistance = 100;
+        } catch (e) {
+          console.warn("OrbitControls not available, using basic controls");
+          // Fallback: manual mouse controls
+          let isDragging = false;
+          let previousMousePosition = { x: 0, y: 0 };
+          renderer.domElement.addEventListener("mousedown", (e) => {
+            isDragging = true;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+          });
+          renderer.domElement.addEventListener("mousemove", (e) => {
+            if (isDragging) {
+              const deltaX = e.clientX - previousMousePosition.x;
+              const deltaY = e.clientY - previousMousePosition.y;
+              camera.position.x += deltaX * 0.01;
+              camera.position.y -= deltaY * 0.01;
+              previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
+          });
+          renderer.domElement.addEventListener("mouseup", () => {
+            isDragging = false;
+          });
+          renderer.domElement.addEventListener("wheel", (e) => {
+            camera.position.multiplyScalar(1 + e.deltaY * 0.001);
+          });
+          controls = {
+            update: () => {},
+            reset: () => setDollhouseView(dollhouseView),
+          };
+        }
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight1.position.set(10, 20, 10);
+        directionalLight1.castShadow = true;
+        scene.add(directionalLight1);
+
+        const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+        directionalLight2.position.set(-10, 10, -10);
+        scene.add(directionalLight2);
+
+        // Grid helper
+        const gridHelper = new THREE.GridHelper(50, 50, 0x444444, 0x222222);
+        scene.add(gridHelper);
+
+        // Axes helper
+        const axesHelper = new THREE.AxesHelper(5);
+        scene.add(axesHelper);
+
+        // File input handler
+        document
+          .getElementById("fileInput")
+          .addEventListener("change", handleFileSelect);
+
+        // Auto-load demo scene if available
+        loadDemoScene();
+
+        // Animation loop
+        animate();
+      }
+
+      function setDollhouseView(enabled) {
+        dollhouseView = enabled;
+        if (enabled) {
+          // Isometric/dollhouse camera position
+          camera.position.set(15, 15, 15);
+          camera.lookAt(0, 0, 0);
+        } else {
+          // Standard perspective
+          camera.position.set(10, 10, 10);
+          camera.lookAt(0, 0, 0);
+        }
+      }
+
+      function resetCamera() {
+        setDollhouseView(dollhouseView);
+        controls.reset();
+      }
+
+      function toggleWireframe() {
+        wireframeMode = !wireframeMode;
+        walls.forEach((wall) => {
+          if (wall.material) {
+            wall.material.wireframe = wireframeMode;
+          }
+        });
+      }
+
+      function toggleLabels() {
+        labelsVisible = !labelsVisible;
+        // TODO: Toggle room labels
+      }
+
+      function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            try {
+              const data = JSON.parse(e.target.result);
+              renderScene(data);
+            } catch (error) {
+              alert("Error parsing JSON: " + error.message);
+            }
+          };
+          reader.readAsText(file);
+        }
+      }
+
+      async function loadDemoScene() {
+        try {
+          const response = await fetch("demo_scene.json");
+          if (response.ok) {
+            const data = await response.json();
+            renderScene(data);
+          }
+        } catch (error) {
+          console.log("No demo scene found, waiting for file upload");
+        }
+      }
+
+      function renderScene(data) {
+        document.getElementById("loading").style.display = "block";
+
+        // Clear existing scene objects
+        clearScene();
+
+        // Update info
+        updateInfo(data);
+
+        // Convert units (meters to Three.js units, 1m = 1 unit)
+        const scale = 1;
+
+        // Render house structure
+        renderHouse(data, scale);
+
+        // Render rooms
+        renderRooms(data, scale);
+
+        // Render walls
+        renderWalls(data, scale);
+
+        // Render openings (doors/windows)
+        renderOpenings(data, scale);
+
+        // Render furniture
+        renderFurniture(data, scale);
+
+        // Center camera on scene
+        centerCameraOnScene(data);
+
+        document.getElementById("loading").style.display = "none";
+      }
+
+      function clearScene() {
+        walls.forEach((wall) => scene.remove(wall));
+        rooms.forEach((room) => scene.remove(room));
+        furniture.forEach((item) => scene.remove(item));
+        walls = [];
+        rooms = [];
+        furniture = [];
+      }
+
+      function renderHouse(data, scale) {
+        const house = data.house;
+        // House bounds visualization
+        const geometry = new THREE.BoxGeometry(
+          house.width_m * scale,
+          0.1 * scale,
+          house.depth_m * scale
+        );
+        const material = new THREE.MeshStandardMaterial({
+          color: 0x888888,
+          transparent: true,
+          opacity: 0.3,
+        });
+        const floor = new THREE.Mesh(geometry, material);
+        floor.position.set(
+          (house.width_m * scale) / 2,
+          0,
+          (house.depth_m * scale) / 2
+        );
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
+      }
+
+      function renderRooms(data, scale) {
+        data.rooms.forEach((room) => {
+          const bounds = room.bounds;
+
+          // Room floor
+          const floorGeometry = new THREE.PlaneGeometry(
+            bounds.width * scale,
+            bounds.depth * scale
+          );
+          const floorMaterial = new THREE.MeshStandardMaterial({
+            color: getRoomColor(room.room_type),
+            transparent: true,
+            opacity: 0.5,
+          });
+          const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+          floor.rotation.x = -Math.PI / 2;
+          floor.position.set(
+            (bounds.x + bounds.width / 2) * scale,
+            0.01,
+            (bounds.y + bounds.depth / 2) * scale
+          );
+          scene.add(floor);
+          rooms.push(floor);
+
+          // Room label
+          if (labelsVisible) {
+            const loader = new THREE.FontLoader();
+            // Simple text using canvas texture
+            const canvas = document.createElement("canvas");
+            const context = canvas.getContext("2d");
+            canvas.width = 256;
+            canvas.height = 64;
+            context.fillStyle = "white";
+            context.font = "24px Arial";
+            context.fillText(room.name, 10, 40);
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.position.set(
+              (bounds.x + bounds.width / 2) * scale,
+              3,
+              (bounds.y + bounds.depth / 2) * scale
+            );
+            sprite.scale.set(2, 0.5, 1);
+            scene.add(sprite);
+          }
+        });
+      }
+
+      function renderWalls(data, scale) {
+        data.walls.forEach((wallData) => {
+          const start = wallData.start;
+          const end = wallData.end;
+          const height = wallData.height_m * scale;
+          const thickness = wallData.thickness_m * scale;
+
+          const dx = (end[0] - start[0]) * scale;
+          const dy = (end[1] - start[1]) * scale;
+          const length = Math.sqrt(dx * dx + dy * dy);
+          const angle = Math.atan2(dy, dx);
+
+          const geometry = new THREE.BoxGeometry(thickness, height, length);
+          const material = new THREE.MeshStandardMaterial({
+            color: wallData.load_bearing ? 0xcccccc : 0xaaaaaa,
+            wireframe: wireframeMode,
+          });
+          const wall = new THREE.Mesh(geometry, material);
+
+          wall.position.set(
+            ((start[0] + end[0]) / 2) * scale,
+            height / 2,
+            ((start[1] + end[1]) / 2) * scale
+          );
+          wall.rotation.y = angle;
+
+          scene.add(wall);
+          walls.push(wall);
+        });
+      }
+
+      function renderOpenings(data, scale) {
+        data.openings.forEach((opening) => {
+          const wall = data.walls.find((w) => w.wall_id === opening.wall_id);
+          if (!wall) return;
+
+          const start = wall.start;
+          const end = wall.end;
+          const dx = (end[0] - start[0]) * scale;
+          const dy = (end[1] - start[1]) * scale;
+          const length = Math.sqrt(dx * dx + dy * dy);
+          const angle = Math.atan2(dy, dx);
+
+          const openingWidth = opening.width_m * scale;
+          const openingHeight = opening.height_m * scale;
+
+          // Create opening frame
+          const geometry = new THREE.BoxGeometry(
+            openingWidth,
+            openingHeight,
+            0.1
+          );
+          const material = new THREE.MeshStandardMaterial({
+            color: opening.type === "window" ? 0x87ceeb : 0x8b4513,
+            transparent: opening.type === "window",
+            opacity: opening.type === "window" ? 0.3 : 1,
+          });
+          const openingMesh = new THREE.Mesh(geometry, material);
+
+          const wallCenterX = ((start[0] + end[0]) / 2) * scale;
+          const wallCenterZ = ((start[1] + end[1]) / 2) * scale;
+          const offset = (opening.position_ratio - 0.5) * length;
+
+          openingMesh.position.set(
+            wallCenterX + Math.cos(angle + Math.PI / 2) * offset,
+            openingHeight / 2,
+            wallCenterZ + Math.sin(angle + Math.PI / 2) * offset
+          );
+          openingMesh.rotation.y = angle;
+
+          scene.add(openingMesh);
+        });
+      }
+
+      function renderFurniture(data, scale) {
+        data.furniture.forEach((furn) => {
+          const room = data.rooms.find((r) => r.room_id === furn.room_id);
+          if (!room) return;
+
+          const bounds = room.bounds;
+          const size = getFurnitureSize(furn.type);
+
+          const geometry = new THREE.BoxGeometry(
+            size.width * scale,
+            size.height * scale,
+            size.depth * scale
+          );
+          const material = new THREE.MeshStandardMaterial({
+            color: getFurnitureColor(furn.type),
+          });
+          const mesh = new THREE.Mesh(geometry, material);
+
+          mesh.position.set(
+            (bounds.x + furn.position[0]) * scale,
+            (size.height * scale) / 2,
+            (bounds.y + furn.position[1]) * scale
+          );
+          mesh.rotation.y = (furn.rotation_deg * Math.PI) / 180;
+
+          scene.add(mesh);
+          furniture.push(mesh);
+        });
+      }
+
+      function getRoomColor(roomType) {
+        const colors = {
+          bedroom: 0xffe4e1,
+          bathroom: 0xe0f7fa,
+          kitchen: 0xfff9c4,
+          living: 0xf3e5f5,
+          hallway: 0xe8eaf6,
+          storage: 0xcfd8dc,
+        };
+        return colors[roomType] || 0xffffff;
+      }
+
+      function getFurnitureSize(type) {
+        const sizes = {
+          bed: { width: 2.0, height: 0.5, depth: 1.9 },
+          sofa: { width: 2.0, height: 0.8, depth: 0.9 },
+          wardrobe: { width: 1.0, height: 2.0, depth: 0.6 },
+          kitchen_cabinet: { width: 3.0, height: 0.9, depth: 0.6 },
+          refrigerator: { width: 0.6, height: 1.8, depth: 0.6 },
+          toilet: { width: 0.4, height: 0.4, depth: 0.6 },
+          sink: { width: 0.6, height: 0.8, depth: 0.5 },
+          coffee_table: { width: 1.2, height: 0.4, depth: 0.8 },
+        };
+        return sizes[type] || { width: 1, height: 1, depth: 1 };
+      }
+
+      function getFurnitureColor(type) {
+        const colors = {
+          bed: 0x8b7355,
+          sofa: 0x654321,
+          wardrobe: 0x4a4a4a,
+          kitchen_cabinet: 0xffffff,
+          refrigerator: 0xffffff,
+          toilet: 0xffffff,
+          sink: 0xffffff,
+          coffee_table: 0x8b4513,
+        };
+        return colors[type] || 0x888888;
+      }
+
+      function centerCameraOnScene(data) {
+        const house = data.house;
+        const centerX = house.width_m / 2;
+        const centerZ = house.depth_m / 2;
+        const maxDim = Math.max(house.width_m, house.depth_m);
+
+        if (dollhouseView) {
+          camera.position.set(
+            centerX + maxDim * 0.8,
+            maxDim * 0.8,
+            centerZ + maxDim * 0.8
+          );
+        } else {
+          camera.position.set(
+            centerX + maxDim * 0.6,
+            maxDim * 0.6,
+            centerZ + maxDim * 0.6
+          );
+        }
+        camera.lookAt(centerX, 0, centerZ);
+        controls.target.set(centerX, 0, centerZ);
+        controls.update();
+      }
+
+      function updateInfo(data) {
+        const info = document.getElementById("sceneInfo");
+        info.innerHTML = `
+                <strong>${data.house.type}</strong><br>
+                Area: ${data.house.total_area_m2.toFixed(1)} m²<br>
+                Rooms: ${data.rooms.length}<br>
+                Walls: ${data.walls.length}<br>
+                Furniture: ${data.furniture.length}<br>
+                Style: ${data.styles.theme}
+            `;
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      window.addEventListener("resize", onWindowResize);
+      init();
+    </script>
+  </body>
+</html>
