@@ -25,15 +25,16 @@ def main():
     os.chdir(Path(__file__).parent)
     
     with socketserver.TCPServer(("", PORT), MyHTTPRequestHandler) as httpd:
-        url = f"http://localhost:{PORT}/viewer.html"
+        url = f"http://localhost:{PORT}/editor.html"
         print("=" * 60)
-        print("🚀 3D Modeler Pro - Web Viewer")
+        print("🚀 3D Modeler Pro - Interactive Editor")
         print("=" * 60)
         print(f"\n📡 Server running at: {url}")
         print(f"\n📁 Serving files from: {os.getcwd()}")
-        print("\n💡 Tips:")
-        print("   - Load a JSON file using the file picker")
-        print("   - Or place 'demo_scene.json' in this directory")
+        print("\n💡 Features:")
+        print("   - Create rooms, walls, and furniture")
+        print("   - Load existing JSON scenes")
+        print("   - Save and export your designs")
         print("   - Use mouse to rotate, zoom, and pan")
         print("\n🛑 Press Ctrl+C to stop the server")
         print("=" * 60)

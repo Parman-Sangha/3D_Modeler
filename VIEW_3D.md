@@ -1,6 +1,6 @@
-# 🏠 3D Dollhouse Viewer - Quick Start
+# 🏠 3D Modeler Pro - Interactive Editor
 
-## 🚀 How to View Your Scenes in 3D
+## 🚀 How to Use the Editor
 
 ### Step 1: Start the Web Server
 
@@ -12,8 +12,8 @@ python3 server.py
 The server will:
 
 - Start on `http://localhost:8000`
-- Automatically open your browser
-- Serve the 3D viewer
+- Automatically open your browser to the editor
+- Serve the interactive 3D editor
 
 ### Step 2: View Your Scene
 

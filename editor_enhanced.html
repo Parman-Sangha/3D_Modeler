@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Modeler Pro - Enhanced Editor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            overflow: hidden;
+        }
+        #container { width: 100vw; height: 100vh; position: relative; }
+        #canvas-container { width: 100%; height: 100%; }
+        
+        /* Sidebar */
+        #sidebar {
+            position: absolute; left: 0; top: 0; width: 320px; height: 100vh;
+            background: linear-gradient(180deg, rgba(20, 20, 30, 0.95) 0%, rgba(15, 15, 25, 0.95) 100%);
+            backdrop-filter: blur(10px); border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px; overflow-y: auto; z-index: 100;
+            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.5);
+        }
+        #sidebar.collapsed { transform: translateX(-280px); transition: transform 0.3s ease; }
+        .sidebar-section { margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+        .sidebar-section h3 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; color: #888; }
+        .tool-button {
+            width: 100%; padding: 12px; margin: 5px 0;
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px; color: #fff; cursor: pointer; font-size: 14px;
+            transition: all 0.2s; text-align: left;
+        }
+        .tool-button:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); }
+        .tool-button.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        .input-group { margin: 10px 0; }
+        .input-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 5px; }
+        .input-group input, .input-group select {
+            width: 100%; padding: 8px; background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; color: #fff; font-size: 13px;
+        }
+        .input-group input:focus, .input-group select:focus {
+            outline: none; border-color: #667eea; background: rgba(255, 255, 255, 0.08);
+        }
+        
+        /* Toolbar */
+        #toolbar {
+            position: absolute; top: 20px; left: 340px; right: 20px; height: 60px;
+            background: rgba(20, 20, 30, 0.9); backdrop-filter: blur(10px);
+            border-radius: 12px; padding: 0 20px; display: flex; align-items: center;
+            gap: 15px; z-index: 100; border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        .toolbar-button {
+            padding: 10px 20px; background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px;
+            color: #fff; cursor: pointer; font-size: 13px; transition: all 0.2s;
+        }
+        .toolbar-button:hover { background: rgba(255, 255, 255, 0.1); }
+        .toolbar-button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .toolbar-button.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+        }
+        .toolbar-button.primary:hover { box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+        
+        #info {
+            position: absolute; bottom: 20px; right: 20px;
+            background: rgba(20, 20, 30, 0.9); backdrop-filter: blur(10px);
+            padding: 15px 20px; border-radius: 12px; font-size: 12px;
+            max-width: 250px; border: 1px solid rgba(255, 255, 255, 0.1); z-index: 100;
+        }
+        #info h4 { margin-bottom: 10px; font-size: 13px; color: #888; }
+        #toggleSidebar {
+            position: absolute; left: 340px; top: 20px; width: 40px; height: 40px;
+            background: rgba(20, 20, 30, 0.9); border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px; color: #fff; cursor: pointer; z-index: 101;
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+        }
+        #toggleSidebar:hover { background: rgba(255, 255, 255, 0.1); }
+        .room-list-item {
+            padding: 10px; margin: 5px 0; background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px; cursor: pointer; transition: all 0.2s;
+        }
+        .room-list-item:hover { background: rgba(255, 255, 255, 0.08); }
+        .room-list-item.selected {
+            background: rgba(102, 126, 234, 0.3); border: 1px solid #667eea;
+        }
+        .loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 18px; z-index: 200; background: rgba(0, 0, 0, 0.8);
+            padding: 20px 40px; border-radius: 12px;
+        }
+        .selection-outline {
+            position: absolute; border: 2px solid #667eea; pointer-events: none;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        
+        <div id="sidebar">
+            <div class="sidebar-section">
+                <h3>📁 File</h3>
+                <input type="file" id="fileInput" accept=".json" style="display: none;" />
+                <button class="tool-button" onclick="document.getElementById('fileInput').click()">📂 Load Scene</button>
+                <button class="tool-button" onclick="saveScene()">💾 Save Scene</button>
+                <button class="tool-button" onclick="newScene()">➕ New Scene</button>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3>🛠️ Tools</h3>
+                <button class="tool-button" id="tool-select" onclick="setTool('select')">👆 Select</button>
+                <button class="tool-button" id="tool-room" onclick="setTool('room')">🏠 Add Room</button>
+                <button class="tool-button" id="tool-wall" onclick="setTool('wall')">🧱 Draw Wall</button>
+                <button class="tool-button" id="tool-furniture" onclick="setTool('furniture')">🪑 Place Furniture</button>
+                <button class="tool-button" id="tool-door" onclick="setTool('door')">🚪 Add Door</button>
+                <button class="tool-button" id="tool-window" onclick="setTool('window')">🪟 Add Window</button>
+                <button class="tool-button" id="tool-delete" onclick="setTool('delete')">🗑️ Delete</button>
+            </div>
+            
+            <div class="sidebar-section" id="roomProperties" style="display: none;">
+                <h3>🏠 Room Properties</h3>
+                <div class="input-group">
+                    <label>Room Name</label>
+                    <input type="text" id="roomName" placeholder="Living Room" />
+                </div>
+                <div class="input-group">
+                    <label>Room Type</label>
+                    <select id="roomType">
+                        <option value="living">Living Room</option>
+                        <option value="bedroom">Bedroom</option>
+                        <option value="kitchen">Kitchen</option>
+                        <option value="bathroom">Bathroom</option>
+                        <option value="hallway">Hallway</option>
+                        <option value="storage">Storage</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Width (m)</label>
+                    <input type="number" id="roomWidth" value="5" step="0.1" min="1" />
+                </div>
+                <div class="input-group">
+                    <label>Depth (m)</label>
+                    <input type="number" id="roomDepth" value="4" step="0.1" min="1" />
+                </div>
+                <button class="tool-button" onclick="createRoom()">Create Room</button>
+            </div>
+            
+            <div class="sidebar-section" id="furnitureProperties" style="display: none;">
+                <h3>🪑 Furniture</h3>
+                <div class="input-group">
+                    <label>Furniture Type</label>
+                    <select id="furnitureType">
+                        <option value="sofa">Sofa</option>
+                        <option value="bed">Bed</option>
+                        <option value="table">Table</option>
+                        <option value="chair">Chair</option>
+                        <option value="wardrobe">Wardrobe</option>
+                        <option value="kitchen_cabinet">Kitchen Cabinet</option>
+                        <option value="refrigerator">Refrigerator</option>
+                        <option value="toilet">Toilet</option>
+                        <option value="sink">Sink</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Select Room</label>
+                    <select id="furnitureRoom">
+                        <option value="">Select a room...</option>
+                    </select>
+                </div>
+                <button class="tool-button" onclick="placeFurniture()">Place Furniture</button>
+            </div>
+            
+            <div class="sidebar-section" id="objectProperties" style="display: none;">
+                <h3>⚙️ Object Properties</h3>
+                <div id="propertyContent"></div>
+                <button class="tool-button" onclick="deleteSelected()">🗑️ Delete Selected</button>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3>⚙️ Settings</h3>
+                <div class="input-group">
+                    <label>
+                        <input type="checkbox" id="snapToGrid" checked onchange="updateSnapSettings()" />
+                        Snap to Grid
+                    </label>
+                </div>
+                <div class="input-group">
+                    <label>Grid Size (m)</label>
+                    <input type="number" id="gridSize" value="0.5" step="0.1" min="0.1" onchange="updateGrid()" />
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3>📋 Rooms</h3>
+                <div id="roomList"></div>
+            </div>
+        </div>
+        
+        <button id="toggleSidebar" onclick="toggleSidebar()">☰</button>
+        
+        <div id="toolbar">
+            <button class="toolbar-button" id="btnUndo" onclick="undo()" disabled>↶ Undo</button>
+            <button class="toolbar-button" id="btnRedo" onclick="redo()" disabled>↷ Redo</button>
+            <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.2);"></div>
+            <button class="toolbar-button" onclick="resetCamera()">🔄 Reset View</button>
+            <button class="toolbar-button" onclick="toggleWireframe()">🔲 Wireframe</button>
+            <button class="toolbar-button" onclick="toggleGrid()">📐 Grid</button>
+            <div style="flex: 1;"></div>
+            <button class="toolbar-button primary" onclick="exportScene()">📤 Export JSON</button>
+        </div>
+        
+        <div id="info">
+            <h4>📊 Scene Info</h4>
+            <div id="sceneInfo">No scene loaded</div>
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">Loading scene...</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // ========== GLOBAL STATE ==========
+        let scene, camera, renderer, controls;
+        let sceneData = null;
+        let currentTool = "select";
+        let walls = [], rooms = [], furniture = [], openings = [];
+        let selectedObject = null;
+        let selectedObjectOutline = null;
+        let isDrawingWall = false;
+        let wallStartPoint = null;
+        let wallPreviewLine = null;
+        let gridHelper = null;
+        let wireframeMode = false;
+        let snapToGrid = true;
+        let gridSize = 0.5;
+        let isDragging = false;
+        let dragStartPos = null;
+        let dragObject = null;
+        let dragOffset = new THREE.Vector3();
+        
+        // Undo/Redo system
+        let history = [];
+        let historyIndex = -1;
+        const MAX_HISTORY = 50;
+        
+        // ========== INITIALIZATION ==========
+        function init() {
+            const container = document.getElementById("canvas-container");
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            scene.fog = new THREE.Fog(0x1a1a2e, 10, 100);
+            
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(20, 20, 20);
+            camera.lookAt(0, 0, 0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            container.appendChild(renderer.domElement);
+            
+            try {
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                controls.minDistance = 5;
+                controls.maxDistance = 200;
+                controls.maxPolarAngle = Math.PI / 2.2;
+            } catch (e) {
+                console.warn("OrbitControls not available");
+            }
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+            
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight1.position.set(15, 25, 15);
+            directionalLight1.castShadow = true;
+            directionalLight1.shadow.mapSize.width = 2048;
+            directionalLight1.shadow.mapSize.height = 2048;
+            scene.add(directionalLight1);
+            
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+            directionalLight2.position.set(-15, 10, -15);
+            scene.add(directionalLight2);
+            
+            const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.3);
+            scene.add(hemisphereLight);
+            
+            // Grid
+            updateGrid();
+            
+            // Axes
+            const axesHelper = new THREE.AxesHelper(10);
+            scene.add(axesHelper);
+            
+            // Floor
+            const floorGeometry = new THREE.PlaneGeometry(100, 100);
+            const floorMaterial = new THREE.MeshStandardMaterial({
+                color: 0x2a2a3e, roughness: 0.8, metalness: 0.1
+            });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            floor.userData = { type: "floor" };
+            scene.add(floor);
+            
+            // Event listeners
+            document.getElementById("fileInput").addEventListener("change", handleFileSelect);
+            renderer.domElement.addEventListener("click", onCanvasClick);
+            renderer.domElement.addEventListener("mousemove", onCanvasMouseMove);
+            renderer.domElement.addEventListener("mousedown", onCanvasMouseDown);
+            renderer.domElement.addEventListener("mouseup", onCanvasMouseUp);
+            document.addEventListener("keydown", onKeyDown);
+            
+            newScene();
+            animate();
+        }
+        
+        // ========== GRID SYSTEM ==========
+        function updateGrid() {
+            if (gridHelper) scene.remove(gridHelper);
+            gridSize = parseFloat(document.getElementById("gridSize").value) || 0.5;
+            gridHelper = new THREE.GridHelper(50, 50 / gridSize, 0x444444, 0x222222);
+            scene.add(gridHelper);
+        }
+        
+        function toggleGrid() {
+            if (gridHelper) gridHelper.visible = !gridHelper.visible;
+        }
+        
+        function snapToGridValue(value) {
+            if (!snapToGrid) return value;
+            return Math.round(value / gridSize) * gridSize;
+        }
+        
+        function snapPoint(point) {
+            if (!snapToGrid) return point;
+            return new THREE.Vector3(
+                snapToGridValue(point.x),
+                point.y,
+                snapToGridValue(point.z)
+            );
+        }
+        
+        function updateSnapSettings() {
+            snapToGrid = document.getElementById("snapToGrid").checked;
+        }
+        
+        // ========== UNDO/REDO SYSTEM ==========
+        function saveState() {
+            // Remove future history if we're not at the end
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
+            
+            // Save current state
+            const state = JSON.parse(JSON.stringify(sceneData));
+            history.push(state);
+            
+            // Limit history size
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+            } else {
+                historyIndex++;
+            }
+            
+            updateUndoRedoButtons();
+        }
+        
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                sceneData = JSON.parse(JSON.stringify(history[historyIndex]));
+                renderScene();
+                updateUndoRedoButtons();
+            }
+        }
+        
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                sceneData = JSON.parse(JSON.stringify(history[historyIndex]));
+                renderScene();
+                updateUndoRedoButtons();
+            }
+        }
+        
+        function updateUndoRedoButtons() {
+            document.getElementById("btnUndo").disabled = historyIndex <= 0;
+            document.getElementById("btnRedo").disabled = historyIndex >= history.length - 1;
+        }
+        
+        // ========== TOOL SYSTEM ==========
+        function setTool(tool) {
+            currentTool = tool;
+            document.querySelectorAll(".tool-button").forEach(btn => btn.classList.remove("active"));
+            document.getElementById(`tool-${tool}`).classList.add("active");
+            
+            document.getElementById("roomProperties").style.display = tool === "room" ? "block" : "none";
+            document.getElementById("furnitureProperties").style.display = tool === "furniture" ? "block" : "none";
+            document.getElementById("objectProperties").style.display = (tool === "select" && selectedObject) ? "block" : "none";
+            
+            updateRoomList();
+        }
+        
+        // ========== WALL SYSTEM ==========
+        function createWall(start, end) {
+            const snappedStart = snapPoint(start);
+            const snappedEnd = snapPoint(end);
+            
+            // Don't create zero-length walls
+            if (snappedStart.distanceTo(snappedEnd) < 0.1) return;
+            
+            saveState();
+            
+            const wallData = {
+                wall_id: `wall_${Date.now()}`,
+                start: [snappedStart.x, snappedStart.z],
+                end: [snappedEnd.x, snappedEnd.z],
+                height_m: 2.7,
+                thickness_m: 0.2,
+                level_id: "ground_floor",
+                load_bearing: true
+            };
+            
+            sceneData.walls.push(wallData);
+            renderWalls();
+            updateInfo();
+        }
+        
+        function deleteWall(wallId) {
+            saveState();
+            sceneData.walls = sceneData.walls.filter(w => w.wall_id !== wallId);
+            renderWalls();
+            updateInfo();
+        }
+        
+        function renderWalls() {
+            walls.forEach(wall => {
+                if (wall.userData.outline) scene.remove(wall.userData.outline);
+                scene.remove(wall);
+            });
+            walls = [];
+            
+            sceneData.walls.forEach(wallData => {
+                const start = wallData.start;
+                const end = wallData.end;
+                const height = wallData.height_m;
+                const thickness = wallData.thickness_m;
+                
+                const dx = end[0] - start[0];
+                const dz = end[1] - start[1];
+                const length = Math.sqrt(dx * dx + dz * dz);
+                const angle = Math.atan2(dz, dx);
+                
+                const geometry = new THREE.BoxGeometry(thickness, height, length);
+                const material = new THREE.MeshStandardMaterial({
+                    color: wallData.load_bearing ? 0xdddddd : 0xbbbbbb,
+                    roughness: 0.6, metalness: 0.1, wireframe: wireframeMode
+                });
+                const wall = new THREE.Mesh(geometry, material);
+                wall.position.set((start[0] + end[0]) / 2, height / 2, (start[1] + end[1]) / 2);
+                wall.rotation.y = angle;
+                wall.castShadow = true;
+                wall.receiveShadow = true;
+                wall.userData = { type: "wall", data: wallData };
+                scene.add(wall);
+                walls.push(wall);
+            });
+        }
+        
+        // ========== DOOR/WINDOW SYSTEM ==========
+        function placeOpening(type) {
+            if (!selectedObject || selectedObject.userData.type !== "wall") {
+                alert("Please select a wall first");
+                return;
+            }
+            
+            saveState();
+            
+            const wallData = selectedObject.userData.data;
+            const openingData = {
+                opening_id: `${type}_${Date.now()}`,
+                type: type,
+                wall_id: wallData.wall_id,
+                position_ratio: 0.5,
+                width_m: type === "door" ? 0.9 : 1.2,
+                height_m: type === "door" ? 2.1 : 1.5,
+                swing: type === "door" ? "left" : "none",
+                transparent: type === "window"
+            };
+            
+            sceneData.openings.push(openingData);
+            renderOpenings();
+            updateInfo();
+        }
+        
+        function renderOpenings() {
+            openings.forEach(opening => scene.remove(opening));
+            openings = [];
+            
+            sceneData.openings.forEach(openingData => {
+                const wall = sceneData.walls.find(w => w.wall_id === openingData.wall_id);
+                if (!wall) return;
+                
+                const start = wall.start;
+                const end = wall.end;
+                const dx = (end[0] - start[0]);
+                const dz = (end[1] - start[1]);
+                const length = Math.sqrt(dx * dx + dz * dz);
+                const angle = Math.atan2(dz, dx);
+                
+                const openingWidth = openingData.width_m;
+                const openingHeight = openingData.height_m;
+                
+                const geometry = new THREE.BoxGeometry(openingWidth, openingHeight, 0.1);
+                const material = new THREE.MeshStandardMaterial({
+                    color: openingData.type === "window" ? 0x87ceeb : 0x8b4513,
+                    transparent: openingData.type === "window",
+                    opacity: openingData.type === "window" ? 0.3 : 1
+                });
+                const openingMesh = new THREE.Mesh(geometry, material);
+                
+                const wallCenterX = (start[0] + end[0]) / 2;
+                const wallCenterZ = (start[1] + end[1]) / 2;
+                const offset = (openingData.position_ratio - 0.5) * length;
+                
+                openingMesh.position.set(
+                    wallCenterX + Math.cos(angle + Math.PI / 2) * offset,
+                    openingHeight / 2,
+                    wallCenterZ + Math.sin(angle + Math.PI / 2) * offset
+                );
+                openingMesh.rotation.y = angle;
+                openingMesh.userData = { type: "opening", data: openingData };
+                scene.add(openingMesh);
+                openings.push(openingMesh);
+            });
+        }
+        
+        // ========== FURNITURE SYSTEM WITH DRAG & DROP ==========
+        function placeFurniture() {
+            const type = document.getElementById("furnitureType").value;
+            const roomId = document.getElementById("furnitureRoom").value;
+            if (!roomId) return;
+            
+            const room = sceneData.rooms.find(r => r.room_id === roomId);
+            if (!room) return;
+            
+            saveState();
+            
+            const furnitureData = {
+                furniture_id: `furn_${Date.now()}`,
+                type: type,
+                room_id: roomId,
+                position: [room.bounds.width / 2, room.bounds.depth / 2],
+                rotation_deg: 0,
+                scale: 1.0,
+                preset: `${type}_01`
+            };
+            
+            sceneData.furniture.push(furnitureData);
+            renderFurniture();
+            updateInfo();
+        }
+        
+        function renderFurniture() {
+            furniture.forEach(item => {
+                if (item.userData.outline) scene.remove(item.userData.outline);
+                scene.remove(item);
+            });
+            furniture = [];
+            
+            sceneData.furniture.forEach(furnData => {
+                const room = sceneData.rooms.find(r => r.room_id === furnData.room_id);
+                if (!room) return;
+                
+                const size = getFurnitureSize(furnData.type);
+                const geometry = new THREE.BoxGeometry(
+                    size.width * furnData.scale,
+                    size.height * furnData.scale,
+                    size.depth * furnData.scale
+                );
+                const material = new THREE.MeshStandardMaterial({
+                    color: getFurnitureColor(furnData.type),
+                    roughness: 0.7, metalness: 0.2
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                const worldX = room.bounds.x + furnData.position[0];
+                const worldZ = room.bounds.y + furnData.position[1];
+                
+                mesh.position.set(
+                    snapToGridValue(worldX),
+                    (size.height * furnData.scale) / 2,
+                    snapToGridValue(worldZ)
+                );
+                mesh.rotation.y = (furnData.rotation_deg * Math.PI) / 180;
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                mesh.userData = { type: "furniture", data: furnData, room: room };
+                scene.add(mesh);
+                furniture.push(mesh);
+            });
+        }
+        
+        function checkCollision(furnMesh, newPos) {
+            const furnSize = getFurnitureSize(furnMesh.userData.data.type);
+            const margin = 0.1;
+            
+            for (let other of furniture) {
+                if (other === furnMesh) continue;
+                if (other.userData.data.room_id !== furnMesh.userData.data.room_id) continue;
+                
+                const otherSize = getFurnitureSize(other.userData.data.type);
+                const otherPos = other.position;
+                
+                const minDist = Math.max(
+                    (furnSize.width + otherSize.width) / 2,
+                    (furnSize.depth + otherSize.depth) / 2
+                ) + margin;
+                
+                const dist = Math.sqrt(
+                    Math.pow(newPos.x - otherPos.x, 2) +
+                    Math.pow(newPos.z - otherPos.z, 2)
+                );
+                
+                if (dist < minDist) return true;
+            }
+            return false;
+        }
+        
+        function getFurnitureSize(type) {
+            const sizes = {
+                bed: { width: 2.0, height: 0.5, depth: 1.9 },
+                sofa: { width: 2.0, height: 0.8, depth: 0.9 },
+                table: { width: 1.2, height: 0.4, depth: 0.8 },
+                chair: { width: 0.5, height: 0.9, depth: 0.5 },
+                wardrobe: { width: 1.0, height: 2.0, depth: 0.6 },
+                kitchen_cabinet: { width: 3.0, height: 0.9, depth: 0.6 },
+                refrigerator: { width: 0.6, height: 1.8, depth: 0.6 },
+                toilet: { width: 0.4, height: 0.4, depth: 0.6 },
+                sink: { width: 0.6, height: 0.8, depth: 0.5 }
+            };
+            return sizes[type] || { width: 1, height: 1, depth: 1 };
+        }
+        
+        function getFurnitureColor(type) {
+            const colors = {
+                bed: 0x8b7355, sofa: 0x654321, table: 0x8b4513, chair: 0x654321,
+                wardrobe: 0x4a4a4a, kitchen_cabinet: 0xffffff, refrigerator: 0xffffff,
+                toilet: 0xffffff, sink: 0xffffff
+            };
+            return colors[type] || 0x888888;
+        }
+        
+        // ========== SELECTION SYSTEM ==========
+        function selectObject(obj) {
+            // Remove previous selection outline
+            if (selectedObjectOutline) {
+                scene.remove(selectedObjectOutline);
+                selectedObjectOutline = null;
+            }
+            
+            selectedObject = obj;
+            
+            if (obj) {
+                // Create selection outline
+                const box = new THREE.BoxHelper(obj, 0x667eea);
+                box.material.linewidth = 3;
+                scene.add(box);
+                selectedObjectOutline = box;
+                
+                // Show properties panel
+                showObjectProperties(obj);
+            } else {
+                document.getElementById("objectProperties").style.display = "none";
+            }
+        }
+        
+        function showObjectProperties(obj) {
+            const panel = document.getElementById("objectProperties");
+            const content = document.getElementById("propertyContent");
+            panel.style.display = "block";
+            
+            if (obj.userData.type === "furniture") {
+                const data = obj.userData.data;
+                content.innerHTML = `
+                    <div class="input-group">
+                        <label>Position X (m)</label>
+                        <input type="number" id="propX" value="${data.position[0].toFixed(2)}" step="0.1" onchange="updateFurniturePosition('x', this.value)" />
+                    </div>
+                    <div class="input-group">
+                        <label>Position Z (m)</label>
+                        <input type="number" id="propZ" value="${data.position[1].toFixed(2)}" step="0.1" onchange="updateFurniturePosition('z', this.value)" />
+                    </div>
+                    <div class="input-group">
+                        <label>Rotation (deg)</label>
+                        <input type="number" id="propRot" value="${data.rotation_deg}" step="15" onchange="updateFurnitureRotation(this.value)" />
+                    </div>
+                    <div class="input-group">
+                        <label>Scale</label>
+                        <input type="number" id="propScale" value="${data.scale.toFixed(2)}" step="0.1" min="0.5" max="2" onchange="updateFurnitureScale(this.value)" />
+                    </div>
+                `;
+            } else if (obj.userData.type === "wall") {
+                const data = obj.userData.data;
+                content.innerHTML = `
+                    <div class="input-group">
+                        <label>Height (m)</label>
+                        <input type="number" id="propHeight" value="${data.height_m}" step="0.1" min="1" max="5" onchange="updateWallHeight(this.value)" />
+                    </div>
+                    <div class="input-group">
+                        <label>Thickness (m)</label>
+                        <input type="number" id="propThickness" value="${data.thickness_m}" step="0.05" min="0.1" max="1" onchange="updateWallThickness(this.value)" />
+                    </div>
+                `;
+            }
+        }
+        
+        function updateFurniturePosition(axis, value) {
+            if (!selectedObject || selectedObject.userData.type !== "furniture") return;
+            saveState();
+            const data = selectedObject.userData.data;
+            if (axis === "x") data.position[0] = parseFloat(value);
+            else data.position[1] = parseFloat(value);
+            renderFurniture();
+            selectObject(selectedObject);
+        }
+        
+        function updateFurnitureRotation(value) {
+            if (!selectedObject || selectedObject.userData.type !== "furniture") return;
+            saveState();
+            selectedObject.userData.data.rotation_deg = parseFloat(value);
+            renderFurniture();
+            selectObject(selectedObject);
+        }
+        
+        function updateFurnitureScale(value) {
+            if (!selectedObject || selectedObject.userData.type !== "furniture") return;
+            saveState();
+            selectedObject.userData.data.scale = parseFloat(value);
+            renderFurniture();
+            selectObject(selectedObject);
+        }
+        
+        function updateWallHeight(value) {
+            if (!selectedObject || selectedObject.userData.type !== "wall") return;
+            saveState();
+            selectedObject.userData.data.height_m = parseFloat(value);
+            renderWalls();
+            selectObject(selectedObject);
+        }
+        
+        function updateWallThickness(value) {
+            if (!selectedObject || selectedObject.userData.type !== "wall") return;
+            saveState();
+            selectedObject.userData.data.thickness_m = parseFloat(value);
+            renderWalls();
+            selectObject(selectedObject);
+        }
+        
+        function deleteSelected() {
+            if (!selectedObject) return;
+            saveState();
+            
+            if (selectedObject.userData.type === "wall") {
+                deleteWall(selectedObject.userData.data.wall_id);
+            } else if (selectedObject.userData.type === "furniture") {
+                sceneData.furniture = sceneData.furniture.filter(
+                    f => f.furniture_id !== selectedObject.userData.data.furniture_id
+                );
+                renderFurniture();
+            } else if (selectedObject.userData.type === "opening") {
+                sceneData.openings = sceneData.openings.filter(
+                    o => o.opening_id !== selectedObject.userData.data.opening_id
+                );
+                renderOpenings();
+            }
+            
+            selectObject(null);
+            updateInfo();
+        }
+        
+        // ========== MOUSE INTERACTION ==========
+        function getIntersectionPoint(event) {
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            const floor = scene.children.find(obj => obj.userData.type === "floor");
+            const intersects = raycaster.intersectObject(floor);
+            return intersects.length > 0 ? intersects[0].point : null;
+        }
+        
+        function onCanvasClick(event) {
+            if (isDragging) return;
+            
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            if (currentTool === "wall") {
+                const point = getIntersectionPoint(event);
+                if (point) {
+                    if (!isDrawingWall) {
+                        wallStartPoint = point;
+                        isDrawingWall = true;
+                    } else {
+                        createWall(wallStartPoint, point);
+                        isDrawingWall = false;
+                        wallStartPoint = null;
+                        if (wallPreviewLine) {
+                            scene.remove(wallPreviewLine);
+                            wallPreviewLine = null;
+                        }
+                    }
+                }
+            } else if (currentTool === "door" || currentTool === "window") {
+                const intersects = raycaster.intersectObjects(walls);
+                if (intersects.length > 0) {
+                    selectObject(intersects[0].object);
+                    placeOpening(currentTool);
+                }
+            } else if (currentTool === "select") {
+                const intersects = raycaster.intersectObjects([...rooms, ...walls, ...furniture, ...openings]);
+                if (intersects.length > 0) {
+                    selectObject(intersects[0].object);
+                } else {
+                    selectObject(null);
+                }
+            } else if (currentTool === "delete") {
+                const intersects = raycaster.intersectObjects([...walls, ...furniture, ...openings]);
+                if (intersects.length > 0) {
+                    selectObject(intersects[0].object);
+                    deleteSelected();
+                }
+            }
+        }
+        
+        function onCanvasMouseDown(event) {
+            if (currentTool !== "select") return;
+            
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            const intersects = raycaster.intersectObjects(furniture);
+            if (intersects.length > 0) {
+                isDragging = true;
+                dragObject = intersects[0].object;
+                const point = getIntersectionPoint(event);
+                if (point) {
+                    dragStartPos = point;
+                    dragOffset.set(
+                        dragObject.position.x - point.x,
+                        0,
+                        dragObject.position.z - point.z
+                    );
+                }
+                if (controls) controls.enabled = false;
+            }
+        }
+        
+        function onCanvasMouseMove(event) {
+            // Wall preview
+            if (currentTool === "wall" && isDrawingWall && wallStartPoint) {
+                const point = getIntersectionPoint(event);
+                if (point) {
+                    if (wallPreviewLine) scene.remove(wallPreviewLine);
+                    const geometry = new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(wallStartPoint.x, 0.1, wallStartPoint.z),
+                        new THREE.Vector3(point.x, 0.1, point.z)
+                    ]);
+                    const material = new THREE.LineBasicMaterial({ color: 0x667eea, linewidth: 3 });
+                    wallPreviewLine = new THREE.Line(geometry, material);
+                    scene.add(wallPreviewLine);
+                }
+            }
+            
+            // Furniture dragging
+            if (isDragging && dragObject) {
+                const point = getIntersectionPoint(event);
+                if (point) {
+                    const newPos = new THREE.Vector3(
+                        snapToGridValue(point.x + dragOffset.x),
+                        dragObject.position.y,
+                        snapToGridValue(point.z + dragOffset.z)
+                    );
+                    
+                    // Check if within room bounds
+                    const room = dragObject.userData.room;
+                    if (room) {
+                        const roomMinX = room.bounds.x;
+                        const roomMaxX = room.bounds.x + room.bounds.width;
+                        const roomMinZ = room.bounds.y;
+                        const roomMaxZ = room.bounds.y + room.bounds.depth;
+                        
+                        newPos.x = Math.max(roomMinX, Math.min(roomMaxX, newPos.x));
+                        newPos.z = Math.max(roomMinZ, Math.min(roomMaxZ, newPos.z));
+                    }
+                    
+                    // Check collision
+                    if (!checkCollision(dragObject, newPos)) {
+                        dragObject.position.copy(newPos);
+                        
+                        // Update furniture data
+                        const data = dragObject.userData.data;
+                        data.position[0] = newPos.x - room.bounds.x;
+                        data.position[1] = newPos.z - room.bounds.y;
+                    }
+                }
+            }
+        }
+        
+        function onCanvasMouseUp(event) {
+            if (isDragging) {
+                isDragging = false;
+                if (dragObject) {
+                    saveState();
+                    renderFurniture();
+                    if (selectedObject === dragObject) {
+                        selectObject(dragObject);
+                    }
+                }
+                dragObject = null;
+                if (controls) controls.enabled = true;
+            }
+        }
+        
+        function onKeyDown(event) {
+            if (event.key === "Delete" || event.key === "Backspace") {
+                if (selectedObject) deleteSelected();
+            } else if (event.ctrlKey || event.metaKey) {
+                if (event.key === "z" && !event.shiftKey) {
+                    event.preventDefault();
+                    undo();
+                } else if (event.key === "z" && event.shiftKey) {
+                    event.preventDefault();
+                    redo();
+                } else if (event.key === "y") {
+                    event.preventDefault();
+                    redo();
+                }
+            } else if (event.key === "r" && selectedObject && selectedObject.userData.type === "furniture") {
+                saveState();
+                selectedObject.userData.data.rotation_deg = (selectedObject.userData.data.rotation_deg + 15) % 360;
+                renderFurniture();
+                selectObject(selectedObject);
+            }
+        }
+        
+        // ========== ROOM SYSTEM ==========
+        function createRoom() {
+            const name = document.getElementById("roomName").value || "Room";
+            const type = document.getElementById("roomType").value;
+            const width = parseFloat(document.getElementById("roomWidth").value);
+            const depth = parseFloat(document.getElementById("roomDepth").value);
+            
+            saveState();
+            
+            const x = rooms.length * 6;
+            const y = 0;
+            
+            const roomData = {
+                room_id: `room_${Date.now()}`,
+                name: name,
+                level_id: "ground_floor",
+                area_m2: width * depth,
+                shape: "rectangle",
+                bounds: { x: x, y: y, width: width, depth: depth },
+                adjacent_rooms: [],
+                room_type: type,
+                privacy_level: type === "bathroom" || type === "bedroom" ? "private" : "public"
+            };
+            
+            sceneData.rooms.push(roomData);
+            renderRooms();
+            updateInfo();
+            updateRoomList();
+        }
+        
+        function renderRooms() {
+            rooms.forEach(room => scene.remove(room));
+            rooms = [];
+            
+            sceneData.rooms.forEach(roomData => {
+                const bounds = roomData.bounds;
+                const floorGeometry = new THREE.PlaneGeometry(bounds.width, bounds.depth);
+                const floorMaterial = new THREE.MeshStandardMaterial({
+                    color: getRoomColor(roomData.room_type),
+                    roughness: 0.7, metalness: 0.1
+                });
+                const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+                floor.rotation.x = -Math.PI / 2;
+                floor.position.set(bounds.x + bounds.width / 2, 0.02, bounds.y + bounds.depth / 2);
+                floor.receiveShadow = true;
+                floor.userData = { type: "room", data: roomData };
+                scene.add(floor);
+                rooms.push(floor);
+                
+                // Room label
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+                canvas.width = 256;
+                canvas.height = 64;
+                context.fillStyle = "rgba(255, 255, 255, 0.9)";
+                context.font = "bold 20px Arial";
+                context.fillText(roomData.name, 10, 35);
+                const texture = new THREE.CanvasTexture(canvas);
+                const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+                const sprite = new THREE.Sprite(spriteMaterial);
+                sprite.position.set(bounds.x + bounds.width / 2, 3, bounds.y + bounds.depth / 2);
+                sprite.scale.set(3, 0.8, 1);
+                scene.add(sprite);
+            });
+        }
+        
+        function getRoomColor(roomType) {
+            const colors = {
+                bedroom: 0xffe4e1, bathroom: 0xe0f7fa, kitchen: 0xfff9c4,
+                living: 0xf3e5f5, hallway: 0xe8eaf6, storage: 0xcfd8dc
+            };
+            return colors[roomType] || 0xffffff;
+        }
+        
+        // ========== SCENE MANAGEMENT ==========
+        function newScene() {
+            sceneData = {
+                meta: { version: "1.0", unit_system: "metric", scale: 1.0, generated_by: "3D Modeler Pro Editor", confidence: 1.0 },
+                house: { type: "residential", footprint_shape: "rectangle", total_area_m2: 0, width_m: 0, depth_m: 0, ceiling_height_m: 2.7, floors: 1 },
+                levels: [{ level_id: "ground_floor", elevation_m: 0, height_m: 2.7 }],
+                rooms: [], walls: [], openings: [], furniture: [],
+                materials: { walls: "paint_white_matte", floor_living: "wood_oak_light" },
+                styles: { theme: "modern", color_palette: ["#ffffff", "#cfcfcf", "#8a8a8a"], material_bias: { wood: 0.5, metal: 0.3, concrete: 0.2 } },
+                constraints: { budget_level: "medium", accessibility: { wheelchair: false, door_min_width_m: 0.9 }, region_code: "NA" },
+                exports: { formats: ["glb", "fbx", "obj", "usd", "blend"], include_textures: true, include_furniture: true, optimize_mesh: true }
+            };
+            history = [];
+            historyIndex = -1;
+            clearScene();
+            updateInfo();
+            updateRoomList();
+            updateUndoRedoButtons();
+        }
+        
+        function clearScene() {
+            rooms.forEach(room => scene.remove(room));
+            walls.forEach(wall => {
+                if (wall.userData.outline) scene.remove(wall.userData.outline);
+                scene.remove(wall);
+            });
+            furniture.forEach(item => {
+                if (item.userData.outline) scene.remove(item.userData.outline);
+                scene.remove(item);
+            });
+            openings.forEach(opening => scene.remove(opening));
+            if (selectedObjectOutline) {
+                scene.remove(selectedObjectOutline);
+                selectedObjectOutline = null;
+            }
+            if (wallPreviewLine) {
+                scene.remove(wallPreviewLine);
+                wallPreviewLine = null;
+            }
+            rooms = [];
+            walls = [];
+            furniture = [];
+            openings = [];
+            selectedObject = null;
+        }
+        
+        function renderScene() {
+            clearScene();
+            renderRooms();
+            renderWalls();
+            renderOpenings();
+            renderFurniture();
+            updateInfo();
+            updateRoomList();
+            centerCamera();
+        }
+        
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        sceneData = JSON.parse(e.target.result);
+                        history = [JSON.parse(JSON.stringify(sceneData))];
+                        historyIndex = 0;
+                        renderScene();
+                        updateUndoRedoButtons();
+                    } catch (error) {
+                        alert("Error parsing JSON: " + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+        
+        function saveScene() {
+            if (sceneData.rooms.length > 0) {
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                sceneData.rooms.forEach(room => {
+                    minX = Math.min(minX, room.bounds.x);
+                    maxX = Math.max(maxX, room.bounds.x + room.bounds.width);
+                    minY = Math.min(minY, room.bounds.y);
+                    maxY = Math.max(maxY, room.bounds.y + room.bounds.depth);
+                });
+                sceneData.house.width_m = maxX - minX;
+                sceneData.house.depth_m = maxY - minY;
+                sceneData.house.total_area_m2 = sceneData.rooms.reduce((sum, r) => sum + r.area_m2, 0);
+            }
+            
+            const json = JSON.stringify(sceneData, null, 2);
+            const blob = new Blob([json], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "scene.json";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function exportScene() { saveScene(); }
+        
+        function resetCamera() {
+            camera.position.set(20, 20, 20);
+            camera.lookAt(0, 0, 0);
+            if (controls) {
+                controls.target.set(0, 0, 0);
+                controls.update();
+            }
+        }
+        
+        function centerCamera() {
+            if (sceneData.rooms.length > 0) {
+                const bounds = sceneData.rooms[0].bounds;
+                camera.position.set(bounds.width * 2, bounds.width * 1.5, bounds.width * 2);
+                camera.lookAt(bounds.width / 2, 0, bounds.depth / 2);
+                if (controls) controls.target.set(bounds.width / 2, 0, bounds.depth / 2);
+            }
+        }
+        
+        function toggleWireframe() {
+            wireframeMode = !wireframeMode;
+            walls.forEach(wall => {
+                if (wall.material) wall.material.wireframe = wireframeMode;
+            });
+        }
+        
+        function changeTheme() {
+            const theme = document.getElementById("themeSelect").value;
+            sceneData.styles.theme = theme;
+        }
+        
+        function toggleSidebar() {
+            document.getElementById("sidebar").classList.toggle("collapsed");
+        }
+        
+        function updateInfo() {
+            const info = document.getElementById("sceneInfo");
+            if (!sceneData) {
+                info.innerHTML = "No scene loaded";
+                return;
+            }
+            info.innerHTML = `
+                <strong>${sceneData.house.type}</strong><br>
+                Area: ${sceneData.house.total_area_m2.toFixed(1)} m²<br>
+                Rooms: ${sceneData.rooms.length}<br>
+                Walls: ${sceneData.walls.length}<br>
+                Furniture: ${sceneData.furniture.length}<br>
+                Style: ${sceneData.styles.theme}
+            `;
+        }
+        
+        function updateRoomList() {
+            const list = document.getElementById("roomList");
+            const furnitureSelect = document.getElementById("furnitureRoom");
+            
+            list.innerHTML = "";
+            furnitureSelect.innerHTML = '<option value="">Select a room...</option>';
+            
+            sceneData.rooms.forEach(room => {
+                const item = document.createElement("div");
+                item.className = "room-list-item";
+                item.textContent = `${room.name} (${room.room_type})`;
+                item.dataset.roomId = room.room_id;
+                item.onclick = () => selectRoom(room, item);
+                list.appendChild(item);
+                
+                const option = document.createElement("option");
+                option.value = room.room_id;
+                option.textContent = room.name;
+                furnitureSelect.appendChild(option);
+            });
+        }
+        
+        function selectRoom(room, element) {
+            document.querySelectorAll(".room-list-item").forEach(item => item.classList.remove("selected"));
+            if (element) {
+                element.classList.add("selected");
+            } else {
+                const item = document.querySelector(`.room-list-item[data-room-id="${room.room_id}"]`);
+                if (item) item.classList.add("selected");
+            }
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            if (controls) controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        window.addEventListener("resize", onWindowResize);
+        init();
+        setTool("select");
+    </script>
+</body>
+</html>
