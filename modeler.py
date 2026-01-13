@@ -325,8 +325,8 @@ class ModelerPro:
                         type=furn_type,
                         room_id=room.room_id,
                         position=[
-                            room.bounds.x + pos[0],
-                            room.bounds.y + pos[1]
+                            pos[0],  # Store relative to room origin, not absolute
+                            pos[1]   # Store relative to room origin, not absolute
                         ],
                         rotation_deg=0.0,
                         scale=1.0,
